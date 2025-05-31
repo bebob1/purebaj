@@ -16,7 +16,7 @@ from pathlib import Path
 @dataclass
 class ImageSettings:
     """Configuración para ajustes de imagen."""
-    brightness: float = 0  # Reducir brillo (-100 a 100)
+    brightness: float = -50.0  # Reducir brillo (-100 a 100)
     contrast: float = 0.8      # Reducir contraste (0.0 a 3.0)
 
 
@@ -155,13 +155,12 @@ class WebcamCapture:
 
 
 class WebcamApp:
-    """Aplicación principal para manejo de webcam."""
+    """Aplicación principal para captura automática de webcam."""
     
     def __init__(self):
         """Inicializa la aplicación."""
         self.webcam = WebcamCapture()
         self.settings = ImageSettings()
-        self.running = False
     
     def setup(self) -> bool:
         """
@@ -172,72 +171,9 @@ class WebcamApp:
         """
         return self.webcam.initialize_camera()
     
-    def run_interactive_mode(self):
-        """Ejecuta la aplicación en modo interactivo."""
-        if not self.setup():
-            print("Error: No se pudo inicializar la aplicación")
-            return
-        
-        print("=== Aplicación de Webcam ===")
-        print("Controles:")
-        print("- Presiona 's' para capturar y guardar imagen")
-        print("- Presiona 'q' para salir")
-        print("- Presiona '+' para aumentar brillo")
-        print("- Presiona '-' para disminuir brillo")
-        print("- Presiona '[' para disminuir contraste")
-        print("- Presiona ']' para aumentar contraste")
-        print("\nConfiguración actual:")
-        print(f"- Brillo: {self.settings.brightness}")
-        print(f"- Contraste: {self.settings.contrast}")
-        
-        self.running = True
-        frame_count = 0
-        
-        try:
-            while self.running:
-                # Capturar frame
-                frame = self.webcam.capture_frame()
-                if frame is None:
-                    continue
-                
-                # Aplicar ajustes
-                processed_frame = self.webcam.adjust_brightness_contrast(
-                    frame, self.settings
-                )
-                
-                # Mostrar frames
-                cv2.imshow('Original', frame)
-                cv2.imshow('Procesada (Brillo/Contraste Reducido)', processed_frame)
-                
-                # Manejar teclas
-                key = cv2.waitKey(1) & 0xFF
-                
-                if key == ord('q'):
-                    self.running = False
-                elif key == ord('s'):
-                    filename = f"imagen_{frame_count:04d}.jpg"
-                    self.webcam.save_image(processed_frame, filename)
-                    frame_count += 1
-                elif key == ord('+') or key == ord('='):
-                    self.settings.brightness = min(100, self.settings.brightness + 5)
-                    print(f"Brillo: {self.settings.brightness}")
-                elif key == ord('-'):
-                    self.settings.brightness = max(-100, self.settings.brightness - 5)
-                    print(f"Brillo: {self.settings.brightness}")
-                elif key == ord('['):
-                    self.settings.contrast = max(0.1, self.settings.contrast - 0.1)
-                    print(f"Contraste: {self.settings.contrast:.1f}")
-                elif key == ord(']'):
-                    self.settings.contrast = min(3.0, self.settings.contrast + 0.1)
-                    print(f"Contraste: {self.settings.contrast:.1f}")
-        
-        except KeyboardInterrupt:
-            print("\nInterrumpido por el usuario")
-        
-        finally:
-            self.cleanup()
+
     
-    def capture_single_image(self, output_filename: str = "single_capture.jpg") -> bool:
+    def capture_single_image(self, output_filename: str) -> bool:
         """
         Captura una sola imagen y la procesa.
         
@@ -272,39 +208,51 @@ class WebcamApp:
     def cleanup(self):
         """Limpia recursos de la aplicación."""
         self.webcam.release_camera()
-        cv2.destroyAllWindows()
+
+
+def generate_filename() -> str:
+    """
+    Genera un nombre de archivo único basado en timestamp.
+    
+    Returns:
+        str: Nombre de archivo con timestamp
+    """
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"captura_{timestamp}.jpg"
 
 
 def main():
-    """Función principal."""
+    """Función principal - Captura automática sin interacción."""
+    print("=== Captura Automática de Webcam ===")
+    print("Inicializando cámara...")
+    
     app = WebcamApp()
     
-    print("Seleccione el modo de operación:")
-    print("1. Modo interactivo (visualización en tiempo real)")
-    print("2. Captura única")
-    
     try:
-        choice = input("Ingrese su opción (1 o 2): ").strip()
+        # Generar nombre de archivo único
+        filename = generate_filename()
         
-        if choice == "1":
-            app.run_interactive_mode()
-        elif choice == "2":
-            filename = input("Nombre del archivo (presione Enter para usar default): ").strip()
-            if not filename:
-                filename = "captura_unica.jpg"
-            
-            if app.capture_single_image(filename):
-                print(f"Imagen capturada y guardada como: {filename}")
-            else:
-                print("Error al capturar imagen")
+        print(f"Capturando imagen...")
+        
+        if app.capture_single_image(filename):
+            print(f"✓ Imagen capturada exitosamente: output/{filename}")
+            print(f"✓ Brillo aplicado: {app.settings.brightness}")
+            print(f"✓ Contraste aplicado: {app.settings.contrast}")
         else:
-            print("Opción no válida")
+            print("✗ Error al capturar la imagen")
+            return 1
     
     except KeyboardInterrupt:
-        print("\nPrograma interrumpido")
+        print("\n✗ Programa interrumpido por el usuario")
+        return 1
     except Exception as e:
-        print(f"Error inesperado: {e}")
+        print(f"✗ Error inesperado: {e}")
+        return 1
+    
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    exit(exit_code)
